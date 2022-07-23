@@ -4,7 +4,7 @@ import java.util.List;
 
 import javax.validation.Valid;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.gabreuvcr.log.domain.service.CustomerService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.gabreuvcr.log.api.mapper.CustomerMapper;
+import com.gabreuvcr.log.api.model.dto.CustomerInput;
+import com.gabreuvcr.log.api.model.dto.CustomerOutput;
 import com.gabreuvcr.log.domain.model.Customer;
-import com.gabreuvcr.log.domain.repository.CustomerRepository;
 import org.springframework.web.bind.annotation.PutMapping;
 
 
@@ -25,49 +27,60 @@ import org.springframework.web.bind.annotation.PutMapping;
 @RequestMapping("/customers")
 public class CustomerController {
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    private final CustomerService customerService;
+    private final CustomerMapper customerMapper;
 
-    CustomerController(CustomerRepository customerRepository) {
-        this.customerRepository = customerRepository;
+    public CustomerController(CustomerService customerService, CustomerMapper customerMapper) {
+        this.customerService = customerService;
+        this.customerMapper = customerMapper;
     }
 
     @GetMapping
-    public List<Customer> findAll() {
-        return customerRepository.findAll();
+    public List<CustomerOutput> findAll() {
+        List<Customer> customers = customerService.findAll();
+        return customerMapper.toCollectionDTO(customers);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Customer> findById(@PathVariable Long id) {
-        return customerRepository.findById(id)
-            .map(customer -> ResponseEntity.ok(customer))
+    public ResponseEntity<CustomerOutput> findById(@PathVariable Long id) {
+        return customerService.findById(id)
+            .map(customer -> {
+                CustomerOutput customerDTO = customerMapper.toDTO(customer);
+                return ResponseEntity.ok(customerDTO);
+            })
             .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Customer create(@Valid @RequestBody Customer customer) {
-        return customerRepository.save(customer);
+    public CustomerOutput create(@Valid @RequestBody CustomerInput customerInput) {
+        Customer customer = customerMapper.toEntity(customerInput);
+        Customer customerCreated = customerService.save(customer);
+        return customerMapper.toDTO(customerCreated);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Customer> update(@PathVariable Long id, @Valid @RequestBody Customer customer) {
-        if (!customerRepository.existsById(id)) {
+    public ResponseEntity<CustomerOutput> update(@PathVariable Long id, 
+            @Valid @RequestBody CustomerInput customerInput) {
+        
+        if (!customerService.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
 
+        Customer customer = customerMapper.toEntity(customerInput);
+
         customer.setId(id);
-        customer = customerRepository.save(customer);
-        return ResponseEntity.ok(customer);
+        Customer customerUpdated = customerService.save(customer);
+        return ResponseEntity.ok(customerMapper.toDTO(customerUpdated));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (!customerRepository.existsById(id)) {
+        if (!customerService.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
 
-        customerRepository.deleteById(id);
+        customerService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }
